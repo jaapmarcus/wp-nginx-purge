@@ -1,0 +1,1 @@
+# wp-nginx-purge
