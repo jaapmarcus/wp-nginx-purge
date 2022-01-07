@@ -20,8 +20,6 @@ class Purge {
     const NAME = 'wp-nginx-purge';
     # clear full cache
     private $events_all = array(
-        'transition_post_status',
-        'transition_comment_status',
         'wp_update_nav_menu',
         'switch_theme',
     );
@@ -55,6 +53,9 @@ class Purge {
     }
     
     function init(){
+        if (is_admin()) {
+            add_action( 'admin_bar_menu', array( $this, 'add_purge_button' ), PHP_INT_MAX );
+        }
         foreach ( $this -> events_single as $event ){
             add_action($event, array( $this, 'single_post' ));
         }
@@ -64,9 +65,33 @@ class Purge {
         add_action('shutdown', array($this, 'purge'));
     }
     
+    public function add_purge_button( $wp_admin_bar ) {
+        $wp_admin_bar->add_node( array(
+            'id'    => 'purge-nginx-cache-manual',
+            'title' => __( 'Purge Nginx Cache', 'purge_everthing' ),
+            'href'  => 'javascript:;',
+            'meta'  => array( 'title' => __( 'Purge Nginx Cache', 'purge-nginx-cache' ) )
+        ) );
+    
+        add_action( 'admin_footer', array( $this, 'embed_wp_nonce' ) );
+        add_action( 'admin_notices', array( $this, 'embed_admin_notices' ) );
+    }
+    
+    public function embed_admin_notices() {
+        echo '<div id="' . self::NAME . '-admin-notices' . '" class="hidden notice"></div>';
+    }
+    
+    public function embed_wp_nonce() {
+        echo '<span id="' . self::NAME . '-purge-wp-nonce' . '" class="hidden">'
+             . wp_create_nonce( self::NAME . '-purge-wp-nonce' )
+             . '</span>';
+    }
+    
     function purge(){
-        foreach($this -> urls as $url){
-            $this -> purge_url($url);
+        if(is_array($this -> urls)){
+            foreach($this -> urls as $url){
+                    $this -> purge_url($url);
+            }
         }
     }
     
@@ -78,6 +103,12 @@ class Purge {
     } 
     
     function purge_everthing(){
+        if ( function_exists( 'icl_get_home_url' ) ) {
+            $homepage_url = trailingslashit( icl_get_home_url() );
+        } else {
+            $homepage_url = trailingslashit( home_url() );
+        }
+        $this -> purge_url($homepage_url.'/*');
     } 
         
     function purge_url($url){
@@ -90,7 +121,6 @@ class Purge {
         curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($curl, CURLOPT_HEADER, true);
         $result = curl_exec($curl);
-        var_dump($result);
     }
     
     function _home_page(){
@@ -118,9 +148,10 @@ class Purge {
         }else{
             $categories = wp_get_post_categories( $post -> id );
         }
-        
-        foreach($categories as $category){
-            $this -> mark_purge(get_category_link($category));
+        if( is_array($categories)){
+            foreach($categories as $category){
+                $this -> mark_purge(get_category_link($category));
+            }
         }
     } 
     
@@ -130,9 +161,10 @@ class Purge {
         }else{
             $categories = get_the_tags( $post -> id );
         }
-        
-        foreach($categories as $category){
-            $this -> mark_purge(get_the_tags($category));
+        if( is_array($categories)){
+            foreach($categories as $category){
+                $this -> mark_purge(get_the_tags($category));
+            }
         }
     }
     
